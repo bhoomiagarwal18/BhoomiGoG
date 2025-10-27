@@ -36,6 +36,9 @@ To revolutionize how digital activity logs are maintained by moving from central
 
 ---
 
+Contract detail:0xB05f0770dDa0D0e984a0329F0c4BbB9c263E13A4
+![alt text](image.png)
+
 ### 🪄 Commands
 
 ```bash
@@ -51,6 +54,3 @@ npx hardhat test
 # Deploy to Sepolia testnet
 npx hardhat run scripts/deploy.js --network sepolia
 
-
-Contract detail:0xB05f0770dDa0D0e984a0329F0c4BbB9c263E13A4
-![alt text](image.png)
