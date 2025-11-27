@@ -1,61 +1,92 @@
-Mapping from address to token balance
-    mapping(address => uint256) private balances;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
 
-    Events
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+/**
+ * @title ChainPulseX
+ * @dev On-chain heartbeat tracker for addresses and services
+ * @notice Accounts can send periodic pulses, and observers can check liveness status
+ */
+contract ChainPulseX {
+    address public owner;
+
+    // Address => last pulse timestamp
+    mapping(address => uint256) public lastPulseAt;
+
+    // Optional label per address (e.g., service name, node id)
+    mapping(address => string) public labels;
+
+    // Global configuration
+    uint256 public maxStaleDuration; // in seconds; after this, heartbeat is considered stale
+
+    event PulseSent(address indexed account, uint256 timestamp, string label);
+    event LabelUpdated(address indexed account, string label);
+    event MaxStaleDurationUpdated(uint256 newDuration);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    Returns balance of given account
-    function balanceOf(address account) public view returns (uint256) {
-        return balances[account];
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
+        _;
     }
 
-    Approve spender to spend tokens on owner's behalf
-    function approve(address spender, uint256 amount) public returns (bool) {
-        require(spender != address(0), "Approve to zero address");
-
-        allowances[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
+    constructor(uint256 _maxStaleDuration) {
+        owner = msg.sender;
+        require(_maxStaleDuration > 0, "Duration = 0");
+        maxStaleDuration = _maxStaleDuration;
     }
 
-    Transfer tokens from one address to another using allowance mechanism
-    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
-        require(sender != address(0), "Transfer from zero address");
-        require(recipient != address(0), "Transfer to zero address");
-        require(balances[sender] >= amount, "Insufficient balance");
-        require(allowances[sender][msg.sender] >= amount, "Allowance exceeded");
+    /**
+     * @dev Send a heartbeat pulse for msg.sender
+     * @param label Optional label to store/update for this address
+     */
+    function pulse(string calldata label) external {
+        lastPulseAt[msg.sender] = block.timestamp;
 
-        balances[sender] -= amount;
-        balances[recipient] += amount;
-        allowances[sender][msg.sender] -= amount;
+        if (bytes(label).length > 0) {
+            labels[msg.sender] = label;
+            emit LabelUpdated(msg.sender, label);
+        }
 
-        emit Transfer(sender, recipient, amount);
-        return true;
+        emit PulseSent(msg.sender, block.timestamp, label);
     }
 
-    Owner can burn tokens from an account
-    function burn(address account, uint256 amount) external onlyOwner {
-        require(account != address(0), "Burn from zero address");
-        uint256 burnAmount = amount * 10**decimals;
-        require(balances[account] >= burnAmount, "Burn amount exceeds balance");
-
-        balances[account] -= burnAmount;
-        totalSupply -= burnAmount;
-
-        emit Transfer(account, address(0), burnAmount);
+    /**
+     * @dev Owner can set or update label for any address (e.g., for system-managed identities)
+     */
+    function setLabel(address account, string calldata label) external onlyOwner {
+        labels[account] = label;
+        emit LabelUpdated(account, label);
     }
 
-    End
-End
-End
-End
-End
-End
-End
-End
-// 
-// 
-End
-// 
+    /**
+     * @dev Check if an address is considered "live"
+     * @param account Address to check
+     * @return live True if lastPulseAt within maxStaleDuration
+     * @return lastTs Last pulse timestamp
+     */
+    function isLive(address account) external view returns (bool live, uint256 lastTs) {
+        lastTs = lastPulseAt[account];
+        if (lastTs == 0) {
+            return (false, 0);
+        }
+        live = (block.timestamp - lastTs) <= maxStaleDuration;
+    }
+
+    /**
+     * @dev Update the maximum stale duration (in seconds)
+     */
+    function updateMaxStaleDuration(uint256 newDuration) external onlyOwner {
+        require(newDuration > 0, "Duration = 0");
+        maxStaleDuration = newDuration;
+        emit MaxStaleDurationUpdated(newDuration);
+    }
+
+    /**
+     * @dev Transfer contract ownership
+     */
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Zero address");
+        address prev = owner;
+        owner = newOwner;
+        emit OwnershipTransferred(prev, newOwner);
+    }
+}
